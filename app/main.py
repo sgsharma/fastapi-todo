@@ -41,7 +41,7 @@ def root(
 
     :return:
     """
-    entries = crud.todo_entry.get_multi(db, skip=0, limit=5)
+    entries = crud.todo_entry.get_multi(db, skip=0)
     return {"entries": entries}
 
 

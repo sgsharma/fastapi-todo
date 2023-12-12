@@ -1,0 +1,42 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+  sqlquery:
+    driver: postgres
+    datasource: "postgres://postgres:postgres@db:5432/crud_db?sslmode=disable"
+    queries:
+      - sql: "SELECT COUNT(*) AS count FROM (SELECT datname,usename,client_addr,client_port FROM pg_stat_activity) tbl1"
+        metrics:
+          - metric_name: metric.connected.users
+            value_column: "count"
+
+exporters:
+  debug:
+  otlp:
+    endpoint: "api.honeycomb.io:443"
+    headers:
+      "x-honeycomb-team": "sQ0jRynr3q8eFMExVbQltD"
+
+processors:
+  batch:
+
+extensions:
+  health_check:
+  pprof:
+    endpoint: :1888
+  zpages:
+    endpoint: :55679
+
+service:
+  extensions: [pprof, zpages, health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug, otlp]
+    metrics:
+      receivers: [otlp, sqlquery]
+      processors: [batch]
+      exporters: [debug, otlp]

@@ -2,17 +2,15 @@ version: "3.9"
 
 services:
   api:
-    container_name: fastapi_backend
-    hostname: fastapi_backend
     env_file:
       - ./configs/local/api.env
     build:
       context: .
       dockerfile: api.Dockerfile
     ports:
-        - "8001:8001"
+      - "8001:8001"
     networks:
-        - backend
+      - backend
     depends_on:
       - db
     command: bash -c "poetry run alembic upgrade head && poetry run uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload"
@@ -20,8 +18,6 @@ services:
     tty: true
 
   db:
-    container_name: db
-    hostname: db
     image: postgres:15.4
     env_file:
       - ./configs/local/postgres.env
@@ -30,11 +26,43 @@ services:
     networks:
       - backend
     volumes:
-      - postgres_data_FAS:/var/lib/postgresql/data/
+      - ./postgres_data:/var/lib/postgresql/data/
 
-volumes:
-    postgres_data_FAS:
-      driver: local
+  master:
+    image: locustio/locust
+    ports:
+      - "8089:8089"
+    volumes:
+      - ./loadgen:/mnt/locust
+    command: -f /mnt/locust/locustfile.py --master -H http://api:8001
+    networks:
+      - backend
+  worker:
+    image: locustio/locust
+    volumes:
+      - ./loadgen:/mnt/locust
+    command: -f /mnt/locust/locustfile.py --worker --master-host master
+    networks:
+      - backend
+
+  # Collector
+  otel-collector:
+    image: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib
+    restart: always
+    command: ["--config=/etc/otelcol-config.yaml", "${OTELCOL_ARGS}"]
+    volumes:
+      - ./otelcol-config.yaml:/etc/otelcol-config.yaml
+    ports:
+      - "1888:1888" # pprof extension
+      - "13133:13133" # health_check extension
+      - "4317:4317" # OTLP gRPC receiver
+      - "4318:4318" # OTLP gRPC receiver
+      - "55679:55679" # zpages extension
+    depends_on:
+      - db
+      - api
+    networks:
+      - backend
 
 networks:
   backend:
