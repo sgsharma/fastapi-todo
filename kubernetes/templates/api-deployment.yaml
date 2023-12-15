@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes -c
+    kompose.version: 1.31.2 (a92241f79)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: api
+  name: api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: api
+  strategy: {}
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes -c
+        kompose.version: 1.31.2 (a92241f79)
+      creationTimestamp: null
+      labels:
+        io.kompose.network/backend: "true"
+        io.kompose.service: api
+    spec:
+      containers:
+        - args:
+            - bash
+            - -c
+            - poetry run alembic upgrade head && poetry run uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+          env:
+            - name: APP_NAME
+              valueFrom:
+                configMapKeyRef:
+                  key: APP_NAME
+                  name: api-env
+            - name: CONTAINERIZED
+              valueFrom:
+                configMapKeyRef:
+                  key: CONTAINERIZED
+                  name: api-env
+            - name: DB_DIALECT
+              valueFrom:
+                configMapKeyRef:
+                  key: DB_DIALECT
+                  name: api-env
+            - name: DB_HOSTNAME
+              valueFrom:
+                configMapKeyRef:
+                  key: DB_HOSTNAME
+                  name: api-env
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  key: DB_NAME
+                  name: api-env
+            - name: DB_PASSWORD
+              valueFrom:
+                configMapKeyRef:
+                  key: DB_PASSWORD
+                  name: api-env
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  key: DB_PORT
+                  name: api-env
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  key: DB_USER
+                  name: api-env
+            - name: JWT_EXPIRATION_TIME
+              valueFrom:
+                configMapKeyRef:
+                  key: JWT_EXPIRATION_TIME
+                  name: api-env
+            - name: JWT_HASHING_ALGORITHM
+              valueFrom:
+                configMapKeyRef:
+                  key: JWT_HASHING_ALGORITHM
+                  name: api-env
+            - name: JWT_HASHING_SECRET
+              valueFrom:
+                configMapKeyRef:
+                  key: JWT_HASHING_SECRET
+                  name: api-env
+          image: localhost:5000/over-engineered-todo-api
+          imagePullPolicy: Never
+          name: api
+          ports:
+            - containerPort: 8001
+              hostPort: 8001
+              protocol: TCP
+          resources: {}
+          stdin: true
+          tty: true
+      restartPolicy: Always
+status: {}

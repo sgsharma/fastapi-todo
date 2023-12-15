@@ -1,0 +1,19 @@
+apiVersion: v1
+data:
+  APP_NAME: OverEngineeredToDoApp
+  CONTAINERIZED: "1"
+  DB_DIALECT: postgresql
+  DB_HOSTNAME: db
+  DB_NAME: crud_db
+  DB_PASSWORD: postgres
+  DB_PORT: "5432"
+  DB_USER: postgres
+  JWT_EXPIRATION_TIME: "3600"
+  JWT_HASHING_ALGORITHM: HS256
+  JWT_HASHING_SECRET: 768aa66f0cac1ce200dbd87eb15a4faa41c08a3bb460d157800295add71d6083
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: api-api-env
+  name: api-env

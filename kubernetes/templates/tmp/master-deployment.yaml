@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes -c
+    kompose.version: 1.31.2 (a92241f79)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: master
+  name: master
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: master
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes -c
+        kompose.version: 1.31.2 (a92241f79)
+      creationTimestamp: null
+      labels:
+        io.kompose.network/backend: "true"
+        io.kompose.service: master
+    spec:
+      containers:
+        - args:
+            - -f
+            - /mnt/locust/locustfile.py
+            - --master
+            - -H
+            - http://api:8001
+          image: locustio/locust
+          name: master
+          ports:
+            - containerPort: 8089
+              hostPort: 8089
+              protocol: TCP
+          resources: {}
+          volumeMounts:
+            - mountPath: /mnt/locust
+              name: master-claim0
+      restartPolicy: Always
+      volumes:
+        - name: master-claim0
+          persistentVolumeClaim:
+            claimName: master-claim0
+status: {}

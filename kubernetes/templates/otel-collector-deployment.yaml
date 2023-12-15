@@ -1,0 +1,126 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes -c
+    kompose.version: 1.31.2 (a92241f79)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: otel-collector
+  name: otel-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: otel-collector
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes -c
+        kompose.version: 1.31.2 (a92241f79)
+      creationTimestamp: null
+      labels:
+        io.kompose.network/backend: "true"
+        io.kompose.service: otel-collector
+    spec:
+      containers:
+        - name: otel-collector
+          image: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:latest
+          imagePullPolicy: Always
+          env:
+            - name: HONEYCOMB_API_KEY
+              value: "<your-api-key>"
+            - name: HONEYCOMB_DATASET
+              value: "metrics"
+          ports:
+            - containerPort: 1888
+              hostPort: 1888
+              protocol: TCP
+            - containerPort: 13133
+              hostPort: 13133
+              protocol: TCP
+            - containerPort: 4317
+              hostPort: 4317
+              protocol: TCP
+            - containerPort: 4318
+              hostPort: 4318
+              protocol: TCP
+            - containerPort: 55679
+              hostPort: 55679
+              protocol: TCP
+          volumeMounts:
+            - name: otel-config
+              mountPath: /etc/otel/collector.yaml
+              subPath: otelcol-config.yaml
+      volumes:
+        - name: otel-config
+          configMap:
+            name: otel-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-config
+data:
+  otelcol-config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+          http:
+      kubeletstats:
+        endpoint: "https://localhost:4443/metrics"
+        collection_interval: 30s # default is 10s
+        metric_groups:
+          - node
+          - pod
+    exporters:
+      debug:
+      otlp:
+        endpoint: "api.honeycomb.io:443"
+        headers:
+          "x-honeycomb-team": ${env:HONEYCOMB_API_KEY}
+          "x-honeycomb-dataset": ${env:HONEYCOMB_DATASET}
+    processors:
+      batch:
+      metricstransform:
+        transforms:
+          - include: ^container\.(.*)$$
+            match_type: regexp
+            action: group
+            group_resource_labels:
+              { "resouce.type": "container", "source": "docker_stats" }
+          - include: ^k8s\.pod\.(.*)$$
+            match_type: regexp
+            action: group
+            group_resource_labels:
+              { "resouce.type": "k8s.pod", "source": "kubelet" }
+          - include: ^k8s\.node\.(.*)$$
+            match_type: regexp
+            action: group
+            group_resource_labels:
+              { "resouce.type": "k8s.node", "source": "kubelet" }
+          - include: ^k8s\.container\.(.*)$$
+            match_type: regexp
+            action: group
+            group_resource_labels:
+              { "resouce.type": "k8s.container", "source": "kubelet" }
+      attributes/metrics:
+        actions:
+          - key: device_major
+            action: delete
+            actions:
+          - key: device_minor
+            action: delete
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [debug, otlp]
+        metrics:
+          receivers: [otlp, kubeletstats]
+          processors: [batch, metricstransform, attributes/metrics]
+          exporters: [debug, otlp]

@@ -3,24 +3,47 @@ receivers:
     protocols:
       grpc:
       http:
-  sqlquery:
-    driver: postgres
-    datasource: "postgres://postgres:postgres@db:5432/crud_db?sslmode=disable"
-    queries:
-      - sql: "SELECT COUNT(*) AS count FROM (SELECT datname,usename,client_addr,client_port FROM pg_stat_activity) tbl1"
-        metrics:
-          - metric_name: metric.connected.users
-            value_column: "count"
-
+  kubeletstats:
+    collection_interval: 30s # default is 10s
+    metric_groups:
+      - node
+      - pod
 exporters:
   debug:
   otlp:
     endpoint: "api.honeycomb.io:443"
     headers:
-      "x-honeycomb-team": "sQ0jRynr3q8eFMExVbQltD"
+      "x-honeycomb-team": ${env:HONEYCOMB_API_KEY}
+      "x-honeycomb-dataset": ${env:HONEYCOMB_DATASET}
 
 processors:
   batch:
+  metricstransform:
+    transforms:
+      - include: ^container\.(.*)$$
+        match_type: regexp
+        action: group
+        group_resource_labels: {"resouce.type": "container", "source": "docker_stats"}
+      - include: ^k8s\.pod\.(.*)$$
+        match_type: regexp
+        action: group
+        group_resource_labels: {"resouce.type": "k8s.pod", "source": "kubelet"}
+      - include: ^k8s\.node\.(.*)$$
+        match_type: regexp
+        action: group
+        group_resource_labels: {"resouce.type": "k8s.node", "source": "kubelet"}
+      - include: ^k8s\.container\.(.*)$$
+        match_type: regexp
+        action: group
+        group_resource_labels: {"resouce.type": "k8s.container", "source": "kubelet"}
+  attributes/metrics:
+    actions:
+      - key: device_major
+        action: delete
+        actions:
+      - key: device_minor
+        action: delete
+
 
 extensions:
   health_check:
@@ -37,6 +60,6 @@ service:
       processors: [batch]
       exporters: [debug, otlp]
     metrics:
-      receivers: [otlp, sqlquery]
-      processors: [batch]
+      receivers: [otlp, kubeletstats]
+      processors: [batch, metricstransform, attributes/metrics]
       exporters: [debug, otlp]
